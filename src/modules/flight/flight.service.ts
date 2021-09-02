@@ -3,6 +3,10 @@ import { FlightDataRepository } from "./flight-data.repository";
 import { min } from "lodash";
 
 const PREFERRED_CARRIER_WEIGHT = 0.9;
+const REGULAR_CARRIER_WEIGHT = 1;
+const MILLISECONDS_IN_HOUR = 3600 * 1000;
+
+type DepartureTimeRange = Readonly<[string, string]>;
 
 export class FlightsService {
   private readonly repository: FlightDataRepository;
@@ -11,8 +15,8 @@ export class FlightsService {
     this.repository = new FlightDataRepository();
   }
   public async getFlights(
-    departureTimeRange: string[],
-    maxFlightDuration: number,
+    departureTimeRange: DepartureTimeRange,
+    maxFlightDurationInHours: number,
     preferredCarrier: string
   ): Promise<FlightData[]> {
     const flights = await this.repository.getFlights();
@@ -21,33 +25,32 @@ export class FlightsService {
     const departureTimeMin = +new Date(departureTimeRange[0]);
     const departureTimeMax = +new Date(departureTimeRange[1]);
 
-    flights.slice(0, 10).forEach((flight) => {
+    flights.forEach((flight) => {
       const arrivalTime = +new Date(flight.arrivalTime);
-      const departureTime = +new Date(flight.departureTime);
+      const flightDepartureTime = +new Date(flight.departureTime);
 
-      if (departureTimeMin > departureTime) {
-        console.log("breaks here");
-
+      if (
+        this.isDepartureTimeOutOfDesiredTimeFrame(
+          departureTimeMin,
+          flightDepartureTime,
+          departureTimeMax
+        )
+      ) {
         return;
       }
-      const duration = (arrivalTime - departureTime) / (3600 * 1000);
 
-      if (duration > maxFlightDuration) {
+      const duration =
+        (arrivalTime - flightDepartureTime) / MILLISECONDS_IN_HOUR;
+
+      if (duration > maxFlightDurationInHours) {
         return;
       }
 
-      const durationInHours = duration / 1000 / 3600;
-      const modifier =
-        preferredCarrier === flight.carrier ? PREFERRED_CARRIER_WEIGHT : 1;
-      const score = durationInHours * modifier + this.getDistance();
-      console.log(
-        "🚀 ~ file: flight.service.ts ~ line 48 ~ FlightsService ~ flights.slice ~ score",
-        score
+      const carrierPreferenceModifier = this.getWeigtModifier(
+        preferredCarrier,
+        flight.carrier
       );
-      console.log(
-        "🚀 ~ file: flight.service.ts ~ line 55 ~ FlightsService ~ flights.slice ~ flightScoreMap",
-        flightScoreMap
-      );
+      const score = duration * carrierPreferenceModifier + this.getDistance();
 
       const flightsInMap = flightScoreMap.get(score);
       if (flightsInMap) {
@@ -57,9 +60,26 @@ export class FlightsService {
       }
     });
 
-    const minScore = min(Array.from(flightScoreMap.keys()));
+    const minScore = min(Array.from(flightScoreMap.keys())) as number;
 
-    return flightScoreMap.get(minScore as number) || [];
+    return flightScoreMap.get(minScore) || [];
+  }
+
+  private getWeigtModifier(preferredCarrier: string, flightCarrier: string) {
+    return preferredCarrier === flightCarrier
+      ? PREFERRED_CARRIER_WEIGHT
+      : REGULAR_CARRIER_WEIGHT;
+  }
+
+  private isDepartureTimeOutOfDesiredTimeFrame(
+    departureTimeMin: number,
+    flightDepartureTime: number,
+    departureTimeMax: number
+  ) {
+    return (
+      departureTimeMin > flightDepartureTime ||
+      flightDepartureTime > departureTimeMax
+    );
   }
 
   private getDistance(): number {

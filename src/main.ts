@@ -5,20 +5,25 @@ import { FlightsService } from "./modules/flight/flight.service";
 const app = express();
 const port = 3000;
 
-const service = new FlightsService()
+const service = new FlightsService();
 
-app.get("/", (req: Request, res: Response) => {
+app.get("/", (_: Request, res: Response) => {
   res.send("Hello World!");
 });
 
-app.get("/get-flights", (req: Request, res: Response) => {
-  const carrier = 'SJC';
+app.get("/get-flights", (_: Request, res: Response) => {
+  const carrier = "UA";
+  // const carrier = "AA";
+
   const duration = 3;
-  const depTime= [
+  const departureTimeRange = [
     "2017-06-01T21:21:17.272Z",
-    "2017-06-01T21:21:17.276Z"
-  ]
-  service.getFlights(depTime,duration,carrier).then(data=> res.json(data));
+    "2017-06-01T21:21:17.412Z",
+  ] as const;
+  service.getFlights(departureTimeRange, duration, carrier).then((data) => {
+    console.log("RESULT: \n" + JSON.stringify(data, null, 2));
+    res.json(data);
+  });
 });
 
 app.listen(port, () => {
